@@ -106,12 +106,9 @@ int main(void)
 		// Verifica valor do pino que o botão está conectado
 		if(!pio_get(BUT_PIO, PIO_INPUT, BUT_IDX_MASK)) {
 			// Pisca LED
-			for (int i=0; i<10; i++) {
-				pio_clear(LED_PIO, LED_IDX_MASK);  // Limpa o pino LED_PIO_PIN
-				delay_ms(100);                         // delay
-				pio_set(LED_PIO, LED_IDX_MASK);    // Ativa o pino LED_PIO_PIN
-				delay_ms(100);                         // delay
-			}
+			pio_clear(LED_PIO, LED_IDX_MASK);  // Limpa o pino LED_PIO_PIN
+			delay_ms(5000);                         // delay
+			pio_set(LED_PIO, LED_IDX_MASK);    // Ativa o pino LED_PIO_PIN
 			} else  {
 			// Ativa o pino LED_IDX (par apagar)
 			pio_set(LED_PIO, LED_IDX_MASK);
