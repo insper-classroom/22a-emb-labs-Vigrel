@@ -27,12 +27,14 @@
 volatile char but1_flag;
 volatile char but2_flag;
 volatile char but3_flag;
+volatile char start_count;
 
 void but_callback(void) {
     if (!pio_get(BUT1_PIO, PIO_INPUT, BUT1_IDX_MASK)) {
         but1_flag = 1;
+		start_count = 1;
     } else {
-        but1_flag = 0;
+		start_count = 0;
     }
     if (!pio_get(BUT2_PIO, PIO_INPUT, BUT2_IDX_MASK)) {
         but2_flag = 1;
@@ -131,11 +133,20 @@ int main(void) {
 
     while (1) {
         if (but1_flag) {
-            add_freq(&freq);
-            show_freq = (double)1000 / freq;
-            sprintf(str, "%.2lf Hz", show_freq);
-            gfx_mono_draw_string(str, 50, 16, &sysfont);
-            but1_flag = 0;
+            if (start_count) {
+                hold_button_count++;
+            } else {
+                if (hold_button_count > 10000000) {
+                    remove_freq(&freq);
+                } else {
+                    add_freq(&freq);
+                }
+                show_freq = (double)1000 / freq;
+                sprintf(str, "%.2lf Hz", show_freq);
+                gfx_mono_draw_string(str, 50, 16, &sysfont);
+                but1_flag = 0;
+				hold_button_count = 0;
+            }
         }
 
         if (but2_flag) {
