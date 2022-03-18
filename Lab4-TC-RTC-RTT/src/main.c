@@ -16,6 +16,7 @@ typedef struct {
 
 volatile char flag_rtc_alarm = 0;
 volatile char rtc_time_flag = 0;
+volatile char flag_butt = 0;
 
 #define LED_PIO PIOC
 #define LED_PIO_ID ID_PIOC
@@ -32,12 +33,26 @@ volatile char rtc_time_flag = 0;
 #define LED2_IDX 30
 #define LED2_IDX_MASK (1 << LED2_IDX)
 
+#define LED3_PIO      PIOB
+#define LED3_PIO_ID   ID_PIOB
+#define LED3_IDX      2
+#define LED3_IDX_MASK (1 << LED3_IDX)
+
+#define BUT1_PIO      PIOD
+#define BUT1_PIO_ID   ID_PIOD
+#define BUT1_IDX      28
+#define BUT1_IDX_MASK (1 << BUT1_IDX)
+
 void pin_toggle(Pio *pio, uint32_t mask);
 void io_init(void);
 
 static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSource);
 void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq);
 void RTC_init(Rtc *rtc, uint32_t id_rtc, calendar t, uint32_t irq_type);
+
+void but_callback(){
+	flag_butt = 1;
+}
 
 void pin_toggle(Pio *pio, uint32_t mask) {
 	if (pio_get_output_data_status(pio, mask))
@@ -47,6 +62,19 @@ void pin_toggle(Pio *pio, uint32_t mask) {
 }
 
 void io_init(void) {
+	pmc_enable_periph_clk(BUT1_PIO_ID);
+	pio_configure(BUT1_PIO, PIO_INPUT, BUT1_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+	pio_set_debounce_filter(BUT1_PIO, BUT1_IDX_MASK, 60);
+	pio_handler_set(BUT1_PIO,
+	BUT1_PIO_ID,
+	BUT1_IDX_MASK,
+	PIO_IT_EDGE,
+	but_callback);
+	pio_enable_interrupt(BUT1_PIO, BUT1_IDX_MASK);
+	pio_get_interrupt_status(BUT1_PIO);
+	NVIC_EnableIRQ(BUT1_PIO_ID);
+	NVIC_SetPriority(BUT1_PIO_ID, 4);
+	
 	pmc_enable_periph_clk(LED_PIO_ID);
 	pio_configure(LED_PIO, PIO_OUTPUT_1, LED_IDX_MASK, PIO_DEFAULT);
 
@@ -56,16 +84,23 @@ void io_init(void) {
 	pmc_enable_periph_clk(LED2_PIO_ID);
 	pio_configure(LED2_PIO, PIO_OUTPUT_1, LED2_IDX_MASK, PIO_DEFAULT);
 
+	pmc_enable_periph_clk(LED2_PIO_ID);
+	pio_configure(LED3_PIO, PIO_OUTPUT_1, LED3_IDX_MASK, PIO_DEFAULT);
 }
 
 void TC0_Handler(void) {
 	volatile uint32_t status = tc_get_status(TC0, 0);
-	pin_toggle(LED_PIO, LED_IDX_MASK);
+	pin_toggle(LED1_PIO, LED1_IDX_MASK);
 }
 
 void TC3_Handler(void) {
 	volatile uint32_t status = tc_get_status(TC1, 0);
-	pin_toggle(LED2_PIO, LED2_IDX_MASK);
+	pin_toggle(LED_PIO, LED_IDX_MASK);
+}
+
+void TC6_Handler(void) {
+	volatile uint32_t status = tc_get_status(TC2, 0);
+	pin_toggle(LED3_PIO, LED3_IDX_MASK);
 }
 
 void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
@@ -90,11 +125,11 @@ void RTT_Handler(void) {
 	ul_status = rtt_get_status(RTT);
 
 	if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
-		RTT_init(4, 0, RTT_MR_RTTINCIEN);
+		RTT_init(4, 16, RTT_MR_RTTINCIEN);
+		pin_toggle(LED2_PIO, LED2_IDX_MASK);
 	}
 
 	if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {
-		pin_toggle(LED1_PIO, LED1_IDX_MASK);
 	}
 }
 
@@ -170,7 +205,11 @@ int main(void) {
 
 	TC_init(TC0, ID_TC0, 0, 4);
 	tc_start(TC0, 0);
+	
 	TC_init(TC1, ID_TC3, 0, 5);
+	tc_start(TC1, 0);
+	
+	TC_init(TC2, ID_TC6, 0, 5);
 	
 	RTT_init(4, 16, RTT_MR_ALMIEN);
 
@@ -178,14 +217,16 @@ int main(void) {
 	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN | RTC_IER_SECEN);
 	uint32_t current_hour, current_min, current_sec;
 	uint32_t current_year, current_month, current_day, current_week;
-	rtc_get_time(RTC, &current_hour, &current_min, &current_sec);
-	rtc_get_date(RTC, &current_year, &current_month, &current_day, &current_week);
-	
-	rtc_set_date_alarm(RTC, 1, current_month, 1, current_day);
-	rtc_set_time_alarm(RTC, 1, current_hour, 1, current_min, 1, current_sec + 5);
+
 	
 	while (1) {
 		pmc_sleep(SAM_PM_SMODE_SLEEP_WFI);
+		
+		if (flag_rtc_alarm) {
+			tc_start(TC2, 0);
+			flag_rtc_alarm = 0;
+		}
+		
 		if (rtc_time_flag) {
 			rtc_get_time(RTC, &current_hour, &current_min, &current_sec);
 			sprintf(str, "%d:%d:%d", current_hour, current_min, current_sec);
@@ -193,9 +234,12 @@ int main(void) {
 			rtc_time_flag = 0;
 		}
 		
-		if (flag_rtc_alarm) {
-			tc_start(TC1, 0);
-			flag_rtc_alarm = 0;
+		if (flag_butt) {
+			rtc_get_time(RTC, &current_hour, &current_min, &current_sec);
+			rtc_get_date(RTC, &current_year, &current_month, &current_day, &current_week);
+			rtc_set_date_alarm(RTC, 1, current_month, 1, current_day);
+			rtc_set_time_alarm(RTC, 1, current_hour, 1, current_min, 1, current_sec + 20);
+			flag_butt= 0;
 		}
 	}
 }
