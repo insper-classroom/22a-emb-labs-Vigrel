@@ -16,22 +16,11 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 #define ECHO_IDX 24
 #define ECHO_IDX_MASK (1 << ECHO_IDX)
 
-#define LED_PIO PIOC
-#define LED_PIO_ID ID_PIOC
-#define LED_IDX 8
-#define LED_IDX_MASK (1u << LED_IDX)
-
-void pisca_led() {
-    pio_clear(LED_PIO, LED_IDX_MASK);
-    delay_ms(1000);
-    pio_set(LED_PIO, LED_IDX_MASK);
-    delay_ms(1000);
-}
-
 #define FREQ 1.0 / (2*0.000058)
 
 volatile char flag_echo_rise;
 volatile char flag_echo_fall;
+volatile char flag_trig;
 
 void echo_callback() {
     if (!pio_get(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK)) {
@@ -64,9 +53,6 @@ void init(void) {
 
     pmc_enable_periph_clk(TRIG_PIO_ID);
     pio_configure(TRIG_PIO, PIO_OUTPUT_1, TRIG_IDX_MASK, PIO_DEFAULT);
-
-    pmc_enable_periph_clk(LED_PIO_ID);
-    pio_configure(LED_PIO, PIO_OUTPUT_1, LED_IDX_MASK, PIO_DEFAULT);
 }
 
 void RTT_Handler(void) {
@@ -98,6 +84,27 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
         rtt_disable_interrupt(RTT, RTT_MR_RTTINCIEN | RTT_MR_ALMIEN);
 }
 
+void TC0_Handler(void) {
+	volatile uint32_t status = tc_get_status(TC0, 0);
+    flag_trig = 1;
+}
+
+void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
+	uint32_t ul_div;
+	uint32_t ul_tcclks;
+	uint32_t ul_sysclk = sysclk_get_cpu_hz();
+
+	pmc_enable_periph_clk(ID_TC);
+
+	tc_find_mck_divisor(freq, ul_sysclk, &ul_div, &ul_tcclks, ul_sysclk);
+	tc_init(TC, TC_CHANNEL, ul_tcclks | TC_CMR_CPCTRG);
+	tc_write_rc(TC, TC_CHANNEL, (ul_sysclk / ul_div) / freq);
+
+	NVIC_SetPriority(ID_TC, 4);
+	NVIC_EnableIRQ((IRQn_Type)ID_TC);
+	tc_enable_interrupt(TC, TC_CHANNEL, TC_IER_CPCS);
+}
+
 
 int main(void) {
     double temp = 0.0;
@@ -110,11 +117,14 @@ int main(void) {
     gfx_mono_ssd1306_init();
     init();
     
+	TC_init(TC0, ID_TC0, 0,(int) 1/0.011764);
+	tc_start(TC0, 0);
+
     while (1) {
-        // if (??TC_FLAG??) {
-        //     pisca_led();
-        //     trig_pulse();
-        // }
+        if (flag_trig) {
+            trig_pulse();
+            flag_trig = 0;
+        }
 		
         if (flag_echo_rise) {
             RTT_init(FREQ, 0, 0);
