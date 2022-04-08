@@ -21,28 +21,37 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 #define BUT1_PIO_IDX 28
 #define BUT1_IDX_MASK (1 << BUT1_PIO_IDX)
 
+#define LED_PIO PIOC
+#define LED_PIO_ID ID_PIOC
+#define LED_IDX 8
+#define LED_IDX_MASK (1u << LED_IDX)
+
+void pisca_led() {
+    pio_clear(LED_PIO, LED_IDX_MASK);
+    delay_ms(1000);
+    pio_set(LED_PIO, LED_IDX_MASK);
+    delay_ms(1000);
+}
+
+#define FREQ 1.0 / (2*0.000058)
+
 volatile char flag_echo_rise;
 volatile char flag_echo_fall;
 volatile char flag_butt;
 volatile char flag_draw;
-double freq = (float)1.0 / 0.000058;
 
 void echo_callback() {
     if (!pio_get(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK)) {
+        flag_echo_fall = 1;
+        flag_echo_rise = 0;
+    } else if (pio_get(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK)) {
         flag_echo_rise = 1;
         flag_echo_fall = 0;
-    } else {
-        flag_echo_rise = 0;
-        flag_echo_fall = 1;
     }
 }
 
 void but_callback() {
-    if (!pio_get(BUT1_PIO, PIO_INPUT, BUT1_IDX_MASK)) {
         flag_butt = 1;
-    } else {
-        flag_butt = 0;
-    }
 }
 
 void trig_pulse() {
@@ -53,7 +62,7 @@ void trig_pulse() {
 
 void init(void) {
     pmc_enable_periph_clk(ECHO_PIO_ID);
-    pio_set_input(ECHO_PIO_ID, ECHO_IDX_MASK, PIO_DEFAULT);
+    pio_configure(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK, PIO_DEFAULT);
     pio_handler_set(ECHO_PIO_ID,
                     ECHO_PIO_ID,
                     ECHO_IDX_MASK,
@@ -70,7 +79,7 @@ void init(void) {
     pio_handler_set(BUT1_PIO,
                     BUT1_PIO_ID,
                     BUT1_IDX_MASK,
-                    PIO_IT_EDGE,
+                    PIO_IT_RISE_EDGE,
                     but_callback);
     pio_enable_interrupt(BUT1_PIO, BUT1_IDX_MASK);
     pio_get_interrupt_status(BUT1_PIO);
@@ -79,13 +88,15 @@ void init(void) {
 
     pmc_enable_periph_clk(TRIG_PIO_ID);
     pio_configure(TRIG_PIO, PIO_OUTPUT_1, TRIG_IDX_MASK, PIO_DEFAULT);
+
+    pmc_enable_periph_clk(LED_PIO_ID);
+    pio_configure(LED_PIO, PIO_OUTPUT_1, LED_IDX_MASK, PIO_DEFAULT);
 }
 
 void RTT_Handler(void) {
     uint32_t ul_status;
     ul_status = rtt_get_status(RTT);
     if ((ul_status & RTT_SR_ALMS) == RTT_SR_ALMS) {
-        RTT_init(4, 16, 0);
     }
     if ((ul_status & RTT_SR_RTTINC) == RTT_SR_RTTINC) {
     }
@@ -111,6 +122,7 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
         rtt_disable_interrupt(RTT, RTT_MR_RTTINCIEN | RTT_MR_ALMIEN);
 }
 
+
 int main(void) {
     double temp = 0.0;
     char str[128];
@@ -121,24 +133,24 @@ int main(void) {
     delay_init();
     gfx_mono_ssd1306_init();
     init();
-
+    
     while (1) {
         if (flag_butt) {
             flag_butt = 0;
+            pisca_led();
             trig_pulse();
         }
+		
         if (flag_echo_rise) {
-            RTT_init(freq, 0, 0);
+            RTT_init(FREQ, 0, 0);
+            flag_echo_rise = 0;
         }
-        if (flag_echo_fall) {
-            temp = rtt_read_timer_value(RTT);
-			flag_draw = 1;
-        }
-        if (flag_draw) {
-            gfx_mono_draw_string(" 				", 0, 0, &sysfont);
-            sprintf(str, "%.2lf cm", (float)temp * 17000 / freq);
+        if (flag_echo_fall){
+            int tempo = rtt_read_timer_value(RTT);
+			gfx_mono_draw_string("             ", 0, 0, &sysfont);
+            sprintf(str, "%.2lf cm", tempo*0.000058*34000);
             gfx_mono_draw_string(str, 0, 0, &sysfont);
-            flag_draw = 0;
+			flag_echo_fall = 0;
         }
     }
 }
