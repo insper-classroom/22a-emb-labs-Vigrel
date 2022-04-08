@@ -16,11 +16,6 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 #define ECHO_IDX 24
 #define ECHO_IDX_MASK (1 << ECHO_IDX)
 
-#define BUT1_PIO PIOD
-#define BUT1_PIO_ID ID_PIOD
-#define BUT1_PIO_IDX 28
-#define BUT1_IDX_MASK (1 << BUT1_PIO_IDX)
-
 #define LED_PIO PIOC
 #define LED_PIO_ID ID_PIOC
 #define LED_IDX 8
@@ -37,8 +32,6 @@ void pisca_led() {
 
 volatile char flag_echo_rise;
 volatile char flag_echo_fall;
-volatile char flag_butt;
-volatile char flag_draw;
 
 void echo_callback() {
     if (!pio_get(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK)) {
@@ -48,10 +41,6 @@ void echo_callback() {
         flag_echo_rise = 1;
         flag_echo_fall = 0;
     }
-}
-
-void but_callback() {
-        flag_butt = 1;
 }
 
 void trig_pulse() {
@@ -72,19 +61,6 @@ void init(void) {
     pio_get_interrupt_status(ECHO_PIO);
     NVIC_EnableIRQ(ECHO_PIO_ID);
     NVIC_SetPriority(ECHO_PIO_ID, 4);
-
-    pmc_enable_periph_clk(BUT1_PIO_ID);
-    pio_configure(BUT1_PIO, PIO_INPUT, BUT1_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
-    pio_set_debounce_filter(BUT1_PIO, BUT1_IDX_MASK, 60);
-    pio_handler_set(BUT1_PIO,
-                    BUT1_PIO_ID,
-                    BUT1_IDX_MASK,
-                    PIO_IT_RISE_EDGE,
-                    but_callback);
-    pio_enable_interrupt(BUT1_PIO, BUT1_IDX_MASK);
-    pio_get_interrupt_status(BUT1_PIO);
-    NVIC_EnableIRQ(BUT1_PIO_ID);
-    NVIC_SetPriority(BUT1_PIO_ID, 4);
 
     pmc_enable_periph_clk(TRIG_PIO_ID);
     pio_configure(TRIG_PIO, PIO_OUTPUT_1, TRIG_IDX_MASK, PIO_DEFAULT);
@@ -135,11 +111,10 @@ int main(void) {
     init();
     
     while (1) {
-        if (flag_butt) {
-            flag_butt = 0;
-            pisca_led();
-            trig_pulse();
-        }
+        // if (??TC_FLAG??) {
+        //     pisca_led();
+        //     trig_pulse();
+        // }
 		
         if (flag_echo_rise) {
             RTT_init(FREQ, 0, 0);
