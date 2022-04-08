@@ -16,12 +16,24 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 #define ECHO_IDX 24
 #define ECHO_IDX_MASK (1 << ECHO_IDX)
 
+#define BUT1_PIO PIOD
+#define BUT1_PIO_ID ID_PIOD
+#define BUT1_IDX 28
+#define BUT1_IDX_MASK (1 << BUT1_IDX)
+
 #define FREQ 1.0 / (2*0.000058)
 
 volatile char flag_echo_rise;
 volatile char flag_echo_fall;
 volatile char flag_trig;
 volatile char flag_sensor_problems;
+volatile char flag_but1;
+volatile char flag_idx_measures;
+volatile char flag_add_measure;
+
+void but1_callback() {
+	flag_but1 = !flag_but1;
+}
 
 void echo_callback() {
     if (!pio_get(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK)) {
@@ -51,6 +63,15 @@ void init(void) {
     pio_get_interrupt_status(ECHO_PIO);
     NVIC_EnableIRQ(ECHO_PIO_ID);
     NVIC_SetPriority(ECHO_PIO_ID, 4);
+
+    pmc_enable_periph_clk(BUT1_PIO_ID);
+    pio_configure(BUT1_PIO, PIO_INPUT, BUT1_IDX_MASK, PIO_PULLUP | PIO_DEBOUNCE);
+    pio_handler_set(BUT1_PIO, BUT1_PIO_ID, BUT1_IDX_MASK, PIO_IT_EDGE,
+	but1_callback);
+    pio_enable_interrupt(BUT1_PIO, BUT1_IDX_MASK);
+    pio_get_interrupt_status(BUT1_PIO);
+    NVIC_EnableIRQ(BUT1_PIO_ID);
+	NVIC_SetPriority(BUT1_PIO_ID, 4);
 
     pmc_enable_periph_clk(TRIG_PIO_ID);
     pio_configure(TRIG_PIO, PIO_OUTPUT_1, TRIG_IDX_MASK, PIO_DEFAULT);
@@ -92,6 +113,15 @@ void TC0_Handler(void) {
 
 }
 
+void TC3_Handler(void) {
+	volatile uint32_t status = tc_get_status(TC1, 0);
+	flag_idx_measures++;
+    if (flag_idx_measures == 5){
+        flag_idx_measures = 0;
+    }
+    flag_add_measure = 1;
+}
+
 void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
 	uint32_t ul_div;
 	uint32_t ul_tcclks;
@@ -110,8 +140,9 @@ void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
 
 
 int main(void) {
-    double temp = 0.0;
     char str[128];
+	double measures[5];
+	
     WDT->WDT_MR = WDT_MR_WDDIS;
 
     board_init();
@@ -123,8 +154,22 @@ int main(void) {
 	TC_init(TC0, ID_TC0, 0,(int) 1/0.011764);
 	tc_start(TC0, 0);
 
+    TC_init(TC1, ID_TC3, 0, 1);
+	tc_start(TC1, 0);
+
     while (1) {
+        if(flag_but1){
+            tc_stop(TC0,0);
+            gfx_mono_draw_string("               ", 0, 0, &sysfont);
+			gfx_mono_draw_string("               ", 0, 16, &sysfont);
+            for(int i = 0; i< 5; i++){
+                gfx_mono_draw_pixel(10 + i*10, 32 - (int)measures[i]/12.5, GFX_PIXEL_SET);
+            }
+            flag_trig=1;
+        }
+
         if (flag_trig) {
+        	tc_start(TC1, 0);
             trig_pulse();
             flag_trig = 0;
         }
@@ -141,11 +186,15 @@ int main(void) {
         }
 
         if (flag_echo_fall){
-            int tempo = rtt_read_timer_value(RTT);
+            double measure = rtt_read_timer_value(RTT)*0.000058*34000;
+            if (flag_add_measure){
+                measures[flag_idx_measures] = measure;
+            }
 			gfx_mono_draw_string("             ", 0, 0, &sysfont);
-            sprintf(str, "%.2lf cm", tempo*0.000058*34000);
+            sprintf(str, "%.2lf cm",measure);
             gfx_mono_draw_string(str, 0, 0, &sysfont);
 			flag_echo_fall = 0;
+            flag_add_measure = 0;
         }
     }
 }
