@@ -21,6 +21,7 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 volatile char flag_echo_rise;
 volatile char flag_echo_fall;
 volatile char flag_trig;
+volatile char flag_sensor_problems;
 
 void echo_callback() {
     if (!pio_get(ECHO_PIO, PIO_INPUT, ECHO_IDX_MASK)) {
@@ -87,6 +88,8 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 void TC0_Handler(void) {
 	volatile uint32_t status = tc_get_status(TC0, 0);
     flag_trig = 1;
+    flag_sensor_problems++;
+
 }
 
 void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
@@ -125,11 +128,18 @@ int main(void) {
             trig_pulse();
             flag_trig = 0;
         }
+
+        if (flag_sensor_problems > 1){
+			gfx_mono_draw_string("               ", 0, 0, &sysfont);
+			gfx_mono_draw_string("Sensor problems", 0, 0, &sysfont);
+        }
 		
         if (flag_echo_rise) {
             RTT_init(FREQ, 0, 0);
             flag_echo_rise = 0;
+            flag_sensor_problems = 0;
         }
+
         if (flag_echo_fall){
             int tempo = rtt_read_timer_value(RTT);
 			gfx_mono_draw_string("             ", 0, 0, &sysfont);
