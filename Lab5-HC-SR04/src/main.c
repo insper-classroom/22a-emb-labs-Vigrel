@@ -26,10 +26,9 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 volatile char flag_echo_rise;
 volatile char flag_echo_fall;
 volatile char flag_trig;
-volatile char flag_sensor_problems;
+volatile char flag_sensor_problems_disconected;
+volatile char flag_sensor_problems_distance;
 volatile char flag_but1;
-volatile char flag_idx_measures;
-volatile char flag_add_measure;
 
 void but1_callback() {
 	flag_but1 = !flag_but1;
@@ -109,17 +108,8 @@ static void RTT_init(float freqPrescale, uint32_t IrqNPulses, uint32_t rttIRQSou
 void TC0_Handler(void) {
 	volatile uint32_t status = tc_get_status(TC0, 0);
 	flag_trig = 1;
-	flag_sensor_problems++;
+	flag_sensor_problems_disconected++;
 
-}
-
-void TC3_Handler(void) {
-	volatile uint32_t status = tc_get_status(TC1, 0);
-	flag_idx_measures++;
-	if (flag_idx_measures == 5){
-		flag_idx_measures = 0;
-	}
-	flag_add_measure = 1;
 }
 
 void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
@@ -141,8 +131,8 @@ void TC_init(Tc *TC, int ID_TC, int TC_CHANNEL, int freq) {
 
 int main(void) {
 	char str[128];
-	double measures[5];
-	
+	int i;
+
 	WDT->WDT_MR = WDT_MR_WDDIS;
 
 	board_init();
@@ -151,50 +141,48 @@ int main(void) {
 	gfx_mono_ssd1306_init();
 	init();
 	
-	TC_init(TC0, ID_TC0, 0,(int) 1/0.011764);
+	TC_init(TC0, ID_TC0, 0,(int) 2);
 	tc_start(TC0, 0);
 
-	TC_init(TC1, ID_TC3, 0, 1);
-	tc_start(TC1, 0);
-
 	while (1) {
-		if(flag_but1){
-			tc_stop(TC0,0);
-			gfx_mono_draw_string("               ", 0, 0, &sysfont);
-			gfx_mono_draw_string("               ", 0, 16, &sysfont);
-			for(int i = 0; i< 5; i++){
-				gfx_mono_draw_pixel(10 + i*10, 32 - (int)measures[i]/12.5, GFX_PIXEL_SET);
-			}
-			flag_trig=1;
-		}
-
 		if (flag_trig) {
-			tc_start(TC1, 0);
 			trig_pulse();
 			flag_trig = 0;
 		}
 
-		if (flag_sensor_problems > 1){
+		if (flag_sensor_problems_disconected > 1){
 			gfx_mono_draw_string("               ", 0, 0, &sysfont);
-			gfx_mono_draw_string("Sensor problems", 0, 0, &sysfont);
+			gfx_mono_draw_string("Disconected", 0, 0, &sysfont);
+			flag_sensor_problems_disconected = 0;
+		}
+		if (flag_sensor_problems_distance == 1){
+			gfx_mono_draw_string("               ", 0, 0, &sysfont);
+			gfx_mono_draw_string("Too far", 0, 0, &sysfont);
 		}
 		
 		if (flag_echo_rise) {
 			RTT_init(FREQ, 0, 0);
 			flag_echo_rise = 0;
-			flag_sensor_problems = 0;
+			flag_sensor_problems_disconected = 0;
 		}
 
 		if (flag_echo_fall){
 			double measure = rtt_read_timer_value(RTT)*0.000058*34000;
-			if (flag_add_measure){
-				measures[flag_idx_measures] = measure;
+			if (measure > 400 && !flag_sensor_problems_disconected){
+				flag_sensor_problems_distance = 1;
+				} else{
+				flag_sensor_problems_distance = 0;
+				gfx_mono_draw_string("             ", 0, 0, &sysfont);
+				sprintf(str, "%.2lf cm",measure);
+				gfx_mono_draw_string(str, 0, 0, &sysfont);
+				gfx_mono_draw_pixel(90 + i*10, 32 - (int)measure/12.5, GFX_PIXEL_SET);
+				i++;
+				if(i==5){
+					i=0;
+					gfx_mono_generic_draw_filled_rect(90, 0, 38, 32, GFX_PIXEL_CLR);
+				}
+				flag_echo_fall = 0;
 			}
-			gfx_mono_draw_string("             ", 0, 0, &sysfont);
-			sprintf(str, "%.2lf cm",measure);
-			gfx_mono_draw_string(str, 0, 0, &sysfont);
-			flag_echo_fall = 0;
-			flag_add_measure = 0;
 		}
 	}
 }
