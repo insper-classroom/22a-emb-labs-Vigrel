@@ -16,8 +16,10 @@
 /* RTOS                                                                */
 /************************************************************************/
 
-#define TASK_ADC_STACK_SIZE (1024*10 / sizeof(portSTACK_TYPE))
+#define TASK_ADC_STACK_SIZE (4096*10 / sizeof(portSTACK_TYPE))
 #define TASK_ADC_STACK_PRIORITY (tskIDLE_PRIORITY)
+#define TASK_PROC_STACK_SIZE (4096*10 / sizeof(portSTACK_TYPE))
+#define TASK_PROC_STACK_PRIORITY (tskIDLE_PRIORITY)
 
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,
                                           signed char *pcTaskName);
@@ -32,10 +34,17 @@ extern void xPortSysTickHandler(void);
 
 /** Queue for msg log send data */
 QueueHandle_t xQueueADC;
+QueueHandle_t xQueuePROC;
 
 typedef struct {
   uint value;
 } adcData;
+
+typedef struct {
+  uint n[10];
+  int size;
+  int avg;
+} procData;
 
 /************************************************************************/
 /* prototypes local                                                     */
@@ -87,7 +96,7 @@ void TC1_Handler(void) {
   /* Avoid compiler warning */
   UNUSED(ul_dummy);
 
-  /* Selecina canal e inicializa conversão */
+  /* Selecina canal e inicializa conversï¿½o */
   afec_channel_enable(AFEC_POT, AFEC_POT_CHANNEL);
   afec_start_software_conversion(AFEC_POT);
 }
@@ -103,23 +112,52 @@ static void AFEC_pot_Callback(void) {
 /* TASKS                                                                */
 /************************************************************************/
 
-static void task_adc(void *pvParameters) {
-
+static void task_proc(void *pvParameters) {
   // configura ADC e TC para controlar a leitura
   config_AFEC_pot(AFEC_POT, AFEC_POT_ID, AFEC_POT_CHANNEL, AFEC_pot_Callback);
   TC_init(TC0, ID_TC1, 1, 10);
   tc_start(TC0, 1);
 
-  // variável para recever dados da fila
+  // variï¿½vel para recever dados da fila
   adcData adc;
+  procData proc;
+  proc.size = 0;
 
   while (1) {
     if (xQueueReceive(xQueueADC, &(adc), 1000)) {
-      printf("ADC: %d \n", adc);
+      // printf("ADC: %d \n", adc);
+
+			if (proc.size < 10) {
+				proc.n[proc.size] = adc.value;
+				proc.size++;
+			} else {
+        for (int i = 0; i < proc.size - 1; i++) {
+          proc.n[i] = proc.n[i+1];
+        }
+        proc.n[proc.size - 1] = adc.value;
+        proc.avg = 0;
+
+        for(int i = 0; i < 10; i++) {
+          proc.avg += proc.n[i];
+        }
+
+        proc.avg /= 10;
+        xQueueSend(xQueuePROC, &proc, 1000);	
+      }
     } else {
       printf("Nao chegou um novo dado em 1 segundo");
     }
   }
+}
+
+static void task_adc(void *pvParameters) {
+  procData proc;
+	
+  while (1) {
+		if (xQueueReceive(xQueuePROC, &proc, 1000)) {
+			printf("mÃ©dia mÃ³vel: %d \n", proc.avg);
+		}
+	}
 }
 
 /************************************************************************/
@@ -164,7 +202,7 @@ static void config_AFEC_pot(Afec *afec, uint32_t afec_id, uint32_t afec_channel,
   /* Configura trigger por software */
   afec_set_trigger(afec, AFEC_TRIG_SW);
 
-  /*** Configuracao específica do canal AFEC ***/
+  /*** Configuracao especï¿½fica do canal AFEC ***/
   struct afec_ch_config afec_ch_cfg;
   afec_ch_get_config_defaults(&afec_ch_cfg);
   afec_ch_cfg.gain = AFEC_GAINVALUE_0;
@@ -223,9 +261,18 @@ int main(void) {
   if (xQueueADC == NULL)
     printf("falha em criar a queue xQueueADC \n");
 
+  xQueuePROC = xQueueCreate(100, sizeof(procData));
+  if (xQueuePROC == NULL)
+    printf("falha em criar a queue xQueuePROC \n");
+
   if (xTaskCreate(task_adc, "ADC", TASK_ADC_STACK_SIZE, NULL,
                   TASK_ADC_STACK_PRIORITY, NULL) != pdPASS) {
     printf("Failed to create test ADC task\r\n");
+  }
+
+  if (xTaskCreate(task_proc, "PROC", TASK_PROC_STACK_SIZE, NULL,
+                  TASK_PROC_STACK_PRIORITY, NULL) != pdPASS) {
+    printf("Failed to create test proc task\r\n");
   }
 
   vTaskStartScheduler();
