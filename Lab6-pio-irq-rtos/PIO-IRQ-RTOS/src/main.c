@@ -27,7 +27,7 @@
 /* RTOS                                                                */
 /************************************************************************/
 
-#define TASK_LED_STACK_SIZE (1024 / sizeof(portSTACK_TYPE))
+#define TASK_LED_STACK_SIZE (4096 / sizeof(portSTACK_TYPE))
 #define TASK_LED_STACK_PRIORITY (tskIDLE_PRIORITY)
 #define TASK_BUT_STACK_SIZE (2048 / sizeof(portSTACK_TYPE))
 #define TASK_BUT_STACK_PRIORITY (tskIDLE_PRIORITY)
@@ -43,12 +43,9 @@ extern void xPortSysTickHandler(void);
 /* recursos RTOS                                                        */
 /************************************************************************/
 
-/** Semaforo a ser usado pela task led */
-SemaphoreHandle_t xSemaphoreBut;
-SemaphoreHandle_t xSemaphoreBut1;
-
 /** Queue for msg log send data */
 QueueHandle_t xQueueLedFreq;
+QueueHandle_t xQueueButFreq;
 
 /************************************************************************/
 /* prototypes local                                                     */
@@ -105,13 +102,13 @@ extern void vApplicationMallocFailedHook(void) {
 /************************************************************************/
 
 void but_callback(void) {
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  xSemaphoreGiveFromISR(xSemaphoreBut, &xHigherPriorityTaskWoken);
+	int msg = -100;
+	xQueueSendFromISR(xQueueButFreq, &msg, pdFALSE);
 }
 
 void but1_callback(void) {
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-  xSemaphoreGiveFromISR(xSemaphoreBut1, &xHigherPriorityTaskWoken);
+	int msg = 100;
+	xQueueSendFromISR(xQueueButFreq, &msg, pdFALSE);
 }
 
 /************************************************************************/
@@ -152,32 +149,15 @@ static void task_but(void *pvParameters) {
   BUT1_init();
 
   uint32_t delayTicks = 2000;
+  int msg;
 
   for (;;) {
-    /* aguarda por tempo inderteminado at� a liberacao do semaforo */
-    if (xSemaphoreTake(xSemaphoreBut, 100)) {
-      /* atualiza frequencia */
-      delayTicks -= 100;
-
-      /* envia nova frequencia para a task_led */
+    if (xQueueReceive(xQueueButFreq, &msg, (TickType_t)0)) {
+      delayTicks += msg;
+      if (delayTicks < 100) delayTicks = 1000;
+      if (delayTicks > 2000) delayTicks = 1000;
+      printf("delay = %d \n", delayTicks);
       xQueueSend(xQueueLedFreq, (void *)&delayTicks, 10);
-
-      /* garante range da freq. */
-      if (delayTicks == 100) {
-        delayTicks = 900;
-      }
-    } 
-    if (xSemaphoreTake(xSemaphoreBut1, 100)) {
-      /* atualiza frequencia */
-      delayTicks += 100;
-
-      /* envia nova frequencia para a task_led */
-      xQueueSend(xQueueLedFreq, (void *)&delayTicks, 10);
-
-      /* garante range da freq. */
-      if (delayTicks == 2100) {
-        delayTicks = 1000;
-      }
     }
   }
 }
@@ -266,18 +246,14 @@ int main(void) {
   board_init();
   configure_console();
 
-  /* Attempt to create a semaphore. */
-  xSemaphoreBut = xSemaphoreCreateBinary();
-  xSemaphoreBut1 = xSemaphoreCreateBinary();
-  if (xSemaphoreBut == NULL)
-    printf("falha em criar o semaforo \n");
-  if (xSemaphoreBut1 == NULL)
-    printf("falha em criar o semaforo \n");
-
   /* cria queue com 32 "espacos" */
   /* cada espa�o possui o tamanho de um inteiro*/
   xQueueLedFreq = xQueueCreate(32, sizeof(uint32_t));
   if (xQueueLedFreq == NULL)
+    printf("falha em criar a queue \n");
+
+  xQueueButFreq = xQueueCreate(32, sizeof(uint32_t));
+  if (xQueueButFreq == NULL)
     printf("falha em criar a queue \n");
 
   /* Create task to make led blink */
