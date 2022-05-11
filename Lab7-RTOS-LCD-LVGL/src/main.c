@@ -86,6 +86,16 @@ void lv_ex_btn_1(void) {
 	lv_obj_center(label);
 }
 
+void lv_termostato(void) {
+    lv_obj_t * labelBtn1;
+    lv_obj_t * btn1 = lv_btn_create(lv_scr_act());
+    lv_obj_add_event_cb(btn1, event_handler, LV_EVENT_ALL, NULL);
+    lv_obj_align(btn1, LV_ALIGN_CENTER, 0, -40);
+    labelBtn1 = lv_label_create(btn1);
+    lv_label_set_text(labelBtn1, "Teste");
+    lv_obj_center(labelBtn1);
+
+}
 /************************************************************************/
 /* TASKS                                                                */
 /************************************************************************/
@@ -93,7 +103,7 @@ void lv_ex_btn_1(void) {
 static void task_lcd(void *pvParameters) {
 	int px, py;
 
-	lv_ex_btn_1();
+	lv_termostato();
 
 	for (;;)  {
 		lv_tick_inc(50);
