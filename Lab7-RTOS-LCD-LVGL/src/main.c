@@ -30,9 +30,57 @@ static  lv_obj_t * labelBtnMenu;
 static  lv_obj_t * labelBtnClk;
 static  lv_obj_t * labelBtnUp;
 static  lv_obj_t * labelBtnDown;
+
 lv_obj_t * labelFloor;
 lv_obj_t * labelSetValue;
 lv_obj_t * labelClock;
+
+typedef struct  {
+	uint32_t year;
+	uint32_t month;
+	uint32_t day;
+	uint32_t week;
+	uint32_t hour;
+	uint32_t minute;
+	uint32_t second;
+} calendar;
+
+/************************************************************************/
+/* RTC                                                                 */
+/************************************************************************/
+
+SemaphoreHandle_t xSemaphoreClock;
+
+void RTC_init(Rtc *rtc, uint32_t id_rtc, calendar t, uint32_t irq_type);
+
+void RTC_Handler(void) {
+	uint32_t ul_status = rtc_get_status(RTC);
+
+	if ((ul_status & RTC_SR_SEC) == RTC_SR_SEC) {
+		BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+		xSemaphoreGiveFromISR(xSemaphoreClock, &xHigherPriorityTaskWoken);
+	}
+
+	rtc_clear_status(RTC, RTC_SCCR_SECCLR);
+	rtc_clear_status(RTC, RTC_SCCR_ALRCLR);
+	rtc_clear_status(RTC, RTC_SCCR_ACKCLR);
+	rtc_clear_status(RTC, RTC_SCCR_TIMCLR);
+	rtc_clear_status(RTC, RTC_SCCR_CALCLR);
+	rtc_clear_status(RTC, RTC_SCCR_TDERRCLR);
+}
+
+
+void RTC_init(Rtc *rtc, uint32_t id_rtc, calendar t, uint32_t irq_type) {
+	pmc_enable_periph_clk(ID_RTC);
+	rtc_set_hour_mode(rtc, 0);
+	rtc_set_date(rtc, t.year, t.month, t.day, t.week);
+	rtc_set_time(rtc, t.hour, t.minute, t.second);
+	NVIC_DisableIRQ(id_rtc);
+	NVIC_ClearPendingIRQ(id_rtc);
+	NVIC_SetPriority(id_rtc, 4);
+	NVIC_EnableIRQ(id_rtc);
+	rtc_enable_interrupt(rtc, irq_type);
+}
 
 /************************************************************************/
 /* RTOS                                                                 */
@@ -40,6 +88,9 @@ lv_obj_t * labelClock;
 
 #define TASK_LCD_STACK_SIZE                (1024*6/sizeof(portSTACK_TYPE))
 #define TASK_LCD_STACK_PRIORITY            (tskIDLE_PRIORITY)
+
+#define TASK_RTC_SIZE                (1024*6/sizeof(portSTACK_TYPE))
+#define TASK_RTC_PRIORITY            (tskIDLE_PRIORITY)
 
 extern void vApplicationStackOverflowHook(xTaskHandle *pxTask,  signed char *pcTaskName);
 extern void vApplicationIdleHook(void);
@@ -210,6 +261,22 @@ static void task_lcd(void *pvParameters) {
 	}
 }
 
+static void task_clock(void *pvParameters) {
+	calendar rtc_initial = {0, 0, 0, 0, 14, 39, 0};
+	RTC_init(RTC, ID_RTC, rtc_initial, RTC_IER_ALREN | RTC_IER_SECEN);
+	uint32_t current_hour, current_min, current_sec;
+			
+
+	for (;;)  {
+		if (xSemaphoreTake(xSemaphoreClock, 1000)) {
+			rtc_get_time(RTC, &current_hour, &current_min, &current_sec);
+			lv_label_set_text_fmt(labelClock, "%02d:%02d", current_hour, current_min);
+		}
+		
+		vTaskDelay(50);
+	}
+}
+
 /************************************************************************/
 /* configs                                                              */
 /************************************************************************/
@@ -301,9 +368,18 @@ int main(void) {
 	configure_touch();
 	configure_lvgl();
 
+	
+	xSemaphoreClock = xSemaphoreCreateBinary();
+	if (xSemaphoreClock == NULL) { 
+		printf("falha em criar o semaforo clock \n");
+	}
+	
 	/* Create task to control oled */
 	if (xTaskCreate(task_lcd, "LCD", TASK_LCD_STACK_SIZE, NULL, TASK_LCD_STACK_PRIORITY, NULL) != pdPASS) {
 		printf("Failed to create lcd task\r\n");
+	}
+	if (xTaskCreate(task_clock, "CLK", TASK_RTC_SIZE, NULL, TASK_RTC_PRIORITY, NULL) != pdPASS) {
+		printf("Failed to create clock task\r\n");
 	}
 	
 	/* Start the scheduler. */
