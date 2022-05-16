@@ -30,8 +30,17 @@ static  lv_obj_t * labelBtnMenu;
 static  lv_obj_t * labelBtnClk;
 static  lv_obj_t * labelBtnUp;
 static  lv_obj_t * labelBtnDown;
+static  lv_obj_t * labelBtnSettings;
+static  lv_obj_t * labelBtnSet;
+static  lv_obj_t * labelBtnClockSmall;
+static  lv_obj_t * labelBtnHeat;
 
+lv_obj_t * labelDay;
+lv_obj_t * labelFloorTemp;
 lv_obj_t * labelFloor;
+lv_obj_t * labelCel;
+lv_obj_t * labelCel2;
+lv_obj_t * labelFloorSmall;
 lv_obj_t * labelSetValue;
 lv_obj_t * labelClock;
 
@@ -227,11 +236,33 @@ static lv_style_t style;
 	lv_label_set_text(labelBtnUp, "[  " LV_SYMBOL_UP);
 	lv_obj_center(labelBtnUp);
 	
+
 	labelFloor = lv_label_create(lv_scr_act());
 	lv_obj_align(labelFloor, LV_ALIGN_LEFT_MID, 35 , -45);
 	lv_obj_set_style_text_font(labelFloor, &dseg70, LV_STATE_DEFAULT);
 	lv_obj_set_style_text_color(labelFloor, lv_color_white(), LV_STATE_DEFAULT);
 	lv_label_set_text_fmt(labelFloor, "%02d", 23);
+	
+	labelDay = lv_label_create(lv_scr_act());
+	lv_obj_set_style_text_color(labelDay, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text(labelDay, "Mon");
+	lv_obj_align_to(labelDay, labelFloor, LV_ALIGN_OUT_TOP_LEFT, 0, 0);
+	
+	labelCel = lv_label_create(lv_scr_act());
+	lv_obj_set_style_text_color(labelCel, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelCel, "C");
+	lv_obj_align_to(labelCel, labelFloor, LV_ALIGN_OUT_RIGHT_TOP, 0, 0);
+	
+	labelFloorTemp = lv_label_create(lv_scr_act());
+	lv_obj_set_style_text_color(labelFloorTemp, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelFloorTemp, "FloorTemp");
+	lv_obj_align_to(labelFloorTemp, labelFloor, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 0);
+	
+	labelFloorSmall = lv_label_create(lv_scr_act());
+	lv_obj_set_style_text_font(labelFloorSmall, &dseg30, LV_STATE_DEFAULT);
+	lv_obj_set_style_text_color(labelFloorSmall, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelFloorSmall, ".%01d", 4);
+	lv_obj_align_to(labelFloorSmall, labelFloor, LV_ALIGN_OUT_RIGHT_MID, 5, 20);
 	
 	labelClock = lv_label_create(lv_scr_act());
 	lv_obj_align(labelClock, LV_ALIGN_TOP_RIGHT, -10 , 10);
@@ -244,6 +275,52 @@ static lv_style_t style;
 	lv_obj_set_style_text_color(labelSetValue, lv_color_white(), LV_STATE_DEFAULT);
 	lv_label_set_text_fmt(labelSetValue, "%02d", 22);
 	lv_obj_align_to(labelSetValue, labelClock, LV_ALIGN_OUT_BOTTOM_MID, 0, 15);
+
+	labelCel2 = lv_label_create(lv_scr_act());
+	lv_obj_set_style_text_color(labelCel2, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelCel2, "C");
+	lv_obj_align_to(labelCel2, labelClock, LV_ALIGN_OUT_RIGHT_TOP, 0, 0);
+	
+	lv_obj_t * btnHeat = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnHeat, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_add_style(btnHeat, &style, 0);
+	lv_obj_set_width(btnHeat, 20);
+	lv_obj_set_height(btnHeat, 20);
+ 	lv_obj_align_to(btnHeat, labelSetValue, LV_ALIGN_OUT_BOTTOM_RIGHT, 0, 5);
+	labelBtnHeat = lv_label_create(btnHeat);
+	lv_label_set_text(labelBtnHeat, LV_SYMBOL_CHARGE);
+	lv_obj_center(labelBtnHeat);
+	
+	lv_obj_t * btnClockSmall = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnClockSmall, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_add_style(btnClockSmall, &style, 0);
+	lv_obj_set_width(btnClockSmall, 20);
+	lv_obj_set_height(btnClockSmall, 20);
+ 	lv_obj_align_to(btnClockSmall, labelSetValue, LV_ALIGN_OUT_BOTTOM_LEFT, 0, 5);
+	labelBtnClockSmall = lv_label_create(btnClockSmall);
+	lv_label_set_text(labelBtnClockSmall, LV_SYMBOL_SETTINGS);
+	lv_obj_center(labelBtnClockSmall);
+
+	lv_obj_t * btnSet = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(btnSet, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_add_style(btnSet, &style, 0);
+	lv_obj_set_width(btnSet, 20);
+	lv_obj_set_height(btnSet, 20);
+ 	lv_obj_align_to(btnSet, labelSetValue, LV_ALIGN_OUT_LEFT_BOTTOM, -10, 10);
+	labelBtnSet = lv_label_create(btnSet);
+	lv_label_set_text(labelBtnSet, LV_SYMBOL_OK);
+	lv_obj_center(labelBtnSet);
+	
+	lv_obj_t * BtnSettings = lv_btn_create(lv_scr_act());
+	lv_obj_add_event_cb(BtnSettings, event_handler, LV_EVENT_ALL, NULL);
+	lv_obj_add_style(BtnSettings, &style, 0);
+	lv_obj_set_width(BtnSettings, 20);
+	lv_obj_set_height(BtnSettings, 20);
+ 	lv_obj_align_to(BtnSettings, labelSetValue, LV_ALIGN_OUT_LEFT_TOP, -10, 0);
+	labelBtnSettings = lv_label_create(BtnSettings);
+	lv_label_set_text(labelBtnSettings, LV_SYMBOL_SETTINGS);
+	lv_obj_center(labelBtnSettings);
+	
 }
 /************************************************************************/
 /* TASKS                                                                */
