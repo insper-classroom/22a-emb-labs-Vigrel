@@ -7,6 +7,7 @@
 #include "ili9341.h"
 #include "lvgl.h"
 #include "touch/touch.h"
+#include "clock.h"
 LV_FONT_DECLARE(dseg70);
 LV_FONT_DECLARE(dseg30);
 LV_FONT_DECLARE(dseg11);
@@ -209,15 +210,15 @@ static lv_style_t style;
 	lv_label_set_text(labelBtnMenu, "  |  M  |  ");
 	lv_obj_center(labelBtnMenu);
 
-	lv_obj_t * btnClk = lv_btn_create(lv_scr_act());
+	lv_obj_t * btnClk = lv_img_create(lv_scr_act());
+	lv_img_set_src(btnClk, &clock);
+	lv_obj_align(btnClk, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_add_event_cb(btnClk, clk_handler, LV_EVENT_ALL, NULL);
-	lv_obj_add_style(btnClk, &style, 0);
-	lv_obj_set_width(btnClk, 60);
-	lv_obj_set_height(btnClk, 60);
+	// lv_obj_add_style(btnClk, &style, 0);
+	// lv_obj_set_width(btnClk, 60);
+	// lv_obj_set_height(btnClk, 60);
 	lv_obj_align_to(btnClk, btnMenu, LV_ALIGN_OUT_RIGHT_MID, 0, 0);
-	labelBtnClk = lv_label_create(btnClk);
-	lv_label_set_text(labelBtnClk, LV_SYMBOL_SETTINGS "  ]");
-	lv_obj_center(labelBtnClk);
+	
 
 	lv_obj_t * btnDown = lv_btn_create(lv_scr_act());
 	lv_obj_add_event_cb(btnDown, down_handler, LV_EVENT_ALL, NULL);
