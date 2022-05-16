@@ -44,6 +44,8 @@ lv_obj_t * labelFloorSmall;
 lv_obj_t * labelSetValue;
 lv_obj_t * labelClock;
 
+volatile char power;
+
 typedef struct  {
 	uint32_t year;
 	uint32_t month;
@@ -128,6 +130,7 @@ static void event_handler(lv_event_t * e) {
 	lv_event_code_t code = lv_event_get_code(e);
 
 	if(code == LV_EVENT_CLICKED) {
+		power = 1;
 		LV_LOG_USER("Clicked");
 	}
 	else if(code == LV_EVENT_VALUE_CHANGED) {
@@ -332,6 +335,9 @@ static void task_lcd(void *pvParameters) {
 	lv_termostato();
 
 	for (;;)  {
+		if (power){
+			lv_obj_clean(lv_scr_act());
+		} 
 		lv_tick_inc(50);
 		lv_task_handler();
 		vTaskDelay(50);
