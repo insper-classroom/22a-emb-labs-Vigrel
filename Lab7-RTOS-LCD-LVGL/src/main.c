@@ -7,6 +7,9 @@
 #include "ili9341.h"
 #include "lvgl.h"
 #include "touch/touch.h"
+LV_FONT_DECLARE(dseg70);
+LV_FONT_DECLARE(dseg30);
+LV_FONT_DECLARE(dseg11);
 
 /************************************************************************/
 /* LCD / LVGL                                                           */
@@ -27,6 +30,9 @@ static  lv_obj_t * labelBtnMenu;
 static  lv_obj_t * labelBtnClk;
 static  lv_obj_t * labelBtnUp;
 static  lv_obj_t * labelBtnDown;
+lv_obj_t * labelFloor;
+lv_obj_t * labelSetValue;
+lv_obj_t * labelClock;
 
 /************************************************************************/
 /* RTOS                                                                 */
@@ -171,6 +177,23 @@ static lv_style_t style;
 	lv_label_set_text(labelBtnUp, "[  " LV_SYMBOL_UP);
 	lv_obj_center(labelBtnUp);
 	
+	labelFloor = lv_label_create(lv_scr_act());
+	lv_obj_align(labelFloor, LV_ALIGN_LEFT_MID, 35 , -45);
+	lv_obj_set_style_text_font(labelFloor, &dseg70, LV_STATE_DEFAULT);
+	lv_obj_set_style_text_color(labelFloor, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelFloor, "%02d", 23);
+	
+	labelClock = lv_label_create(lv_scr_act());
+	lv_obj_align(labelClock, LV_ALIGN_TOP_RIGHT, -10 , 10);
+	lv_obj_set_style_text_font(labelClock, &dseg11, LV_STATE_DEFAULT);
+	lv_obj_set_style_text_color(labelClock, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelClock, "%02d:%02d", 17, 46);
+
+	labelSetValue = lv_label_create(lv_scr_act());
+	lv_obj_set_style_text_font(labelSetValue, &dseg30, LV_STATE_DEFAULT);
+	lv_obj_set_style_text_color(labelSetValue, lv_color_white(), LV_STATE_DEFAULT);
+	lv_label_set_text_fmt(labelSetValue, "%02d", 22);
+	lv_obj_align_to(labelSetValue, labelClock, LV_ALIGN_OUT_BOTTOM_MID, 0, 15);
 }
 /************************************************************************/
 /* TASKS                                                                */
