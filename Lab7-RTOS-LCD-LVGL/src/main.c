@@ -214,9 +214,6 @@ static lv_style_t style;
 	lv_img_set_src(btnClk, &clock);
 	lv_obj_align(btnClk, LV_ALIGN_CENTER, 0, 0);
 	lv_obj_add_event_cb(btnClk, clk_handler, LV_EVENT_ALL, NULL);
-	// lv_obj_add_style(btnClk, &style, 0);
-	// lv_obj_set_width(btnClk, 60);
-	// lv_obj_set_height(btnClk, 60);
 	lv_obj_align_to(btnClk, btnMenu, LV_ALIGN_OUT_RIGHT_MID, 0, 0);
 	
 
@@ -237,7 +234,7 @@ static lv_style_t style;
 	lv_obj_set_height(btnUp, 60);
  	lv_obj_align_to(btnUp, btnDown, LV_ALIGN_OUT_LEFT_MID, 0, 0);
 	labelBtnUp = lv_label_create(btnUp);
-	lv_label_set_text(labelBtnUp, "[  " LV_SYMBOL_UP);
+	lv_label_set_text(labelBtnUp, "]   [" LV_SYMBOL_UP);
 	lv_obj_center(labelBtnUp);
 	
 
