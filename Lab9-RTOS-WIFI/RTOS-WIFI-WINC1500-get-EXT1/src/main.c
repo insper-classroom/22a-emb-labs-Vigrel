@@ -12,6 +12,11 @@
 #define LED_IDX 8
 #define LED_IDX_MASK (1u << LED_IDX)
 
+#define BUT_PIO PIOA
+#define BUT_PIO_ID ID_PIOA
+#define BUT_PIO_PIN 11
+#define BUT_PIO_PIN_MASK (1 << BUT_PIO_PIN)
+
 /************************************************************************/
 /* WIFI                                                                 */
 /************************************************************************/
@@ -52,6 +57,7 @@ static char server_host_name[] = MAIN_SERVER_NAME;
 #define TASK_PROCESS_STACK_SIZE   (4*4096/sizeof(portSTACK_TYPE))
 #define TASK_PROCESS_PRIORITY     (0)
 
+SemaphoreHandle_t xSemaphoreLED;
 SemaphoreHandle_t xSemaphore;
 QueueHandle_t xQueueMsg;
 
@@ -85,9 +91,26 @@ extern void vApplicationMallocFailedHook(void){
 /************************************************************************/
 /* funcoes                                                              */
 /************************************************************************/
+void but_callback(void) {
+  xSemaphoreGiveFromISR(xSemaphoreLED, pdFALSE);
+}
+
 void io_init(void) {
   pmc_enable_periph_clk(LED_PIO_ID);
 	pio_configure(LED_PIO, PIO_OUTPUT_1, LED_IDX_MASK, PIO_DEFAULT);
+
+  pio_configure(BUT_PIO, PIO_INPUT, BUT_PIO_PIN_MASK,
+                PIO_PULLUP | PIO_DEBOUNCE);
+  pio_set_debounce_filter(BUT_PIO, BUT_PIO_PIN_MASK, 60);
+  pio_enable_interrupt(BUT_PIO, BUT_PIO_PIN_MASK);
+  pio_handler_set(BUT_PIO, BUT_PIO_ID, BUT_PIO_PIN_MASK, PIO_IT_FALL_EDGE,
+                  but_callback);
+
+  pio_get_interrupt_status(BUT_PIO);
+				  
+  /* configura prioridae */
+  NVIC_EnableIRQ(BUT_PIO_ID);
+  NVIC_SetPriority(BUT_PIO_ID, 4);
 }
 /************************************************************************/
 /* callbacks                                                            */
@@ -252,7 +275,14 @@ static void task_process(void *pvParameters) {
   enum states state = WAIT;
 
   while(1){
-
+    if (xSemaphoreTake(xSemaphoreLED, 100)) {
+      led_flag = !led_flag;
+    }
+    if(led_flag){
+      pio_clear(LED_PIO, LED_IDX_MASK);
+    } else {
+      pio_set(LED_PIO, LED_IDX_MASK);
+    }
     switch(state){
       case WAIT:
       // aguarda task_wifi conectar no wifi e socket estar pronto
@@ -306,12 +336,6 @@ static void task_process(void *pvParameters) {
             } else {
                 ret++;
             }
-        }
-
-        if(led_flag){
-          pio_clear(LED_PIO, LED_IDX_MASK);
-        } else {
-          pio_set(LED_PIO, LED_IDX_MASK);
         }
 
         state = DONE;
@@ -409,6 +433,10 @@ int main(void)
   /* Initialize the board. */
   sysclk_init();
   board_init();
+
+  xSemaphoreLED = xSemaphoreCreateBinary();
+  if (xSemaphoreLED == NULL)
+    printf("falha em criar o semaforo \n");
 
   /* Initialize the UART console. */
   configure_console();
