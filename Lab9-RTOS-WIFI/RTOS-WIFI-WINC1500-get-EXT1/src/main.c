@@ -5,6 +5,7 @@
 #include "driver/include/m2m_wifi.h"
 #include "socket/include/socket.h"
 #include "util.h"
+#include <ctype.h>
 
 #define LED_PIO PIOC
 #define LED_PIO_ID ID_PIOC
@@ -231,6 +232,8 @@ static void wifi_cb(uint8_t u8MsgType, void *pvMsg)
 
 static void task_process(void *pvParameters) {
 
+  int led_flag = 0;
+
   printf("task process created \n");
   vTaskDelay(1000);
 
@@ -292,6 +295,25 @@ static void task_process(void *pvParameters) {
         printf(STRING_LINE);
         printf(p_recvMsg->pu8Buffer);
         printf(STRING_EOL);  printf(STRING_LINE);
+
+        char *ret;
+        const char led[10] = "\"led\":";
+        ret = strstr(p_recvMsg->pu8Buffer, led);
+
+        while (*ret) {
+            if (isdigit(*ret)) {
+                led_flag = strtol(ret, &ret, 10);
+            } else {
+                ret++;
+            }
+        }
+
+        if(led_flag){
+          pio_clear(LED_PIO, LED_IDX_MASK);
+        } else {
+          pio_set(LED_PIO, LED_IDX_MASK);
+        }
+
         state = DONE;
       }
       else {
