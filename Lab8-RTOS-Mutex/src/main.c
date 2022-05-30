@@ -62,6 +62,7 @@ typedef struct  {
 /************************************************************************/
 
 SemaphoreHandle_t xSemaphoreClock;
+SemaphoreHandle_t xMutexLVGL;
 
 void RTC_init(Rtc *rtc, uint32_t id_rtc, calendar t, uint32_t irq_type);
 
@@ -336,7 +337,9 @@ static void task_lcd(void *pvParameters) {
 		if (power){
 			lv_obj_clean(lv_scr_act());
 		} 
+		xSemaphoreTake( xMutexLVGL, portMAX_DELAY );
 		lv_tick_inc(50);
+		xSemaphoreGive( xMutexLVGL );
 		lv_task_handler();
 		vTaskDelay(50);
 	}
@@ -449,6 +452,7 @@ int main(void) {
 	configure_touch();
 	configure_lvgl();
 
+	xMutexLVGL = xSemaphoreCreateMutex();
 	
 	xSemaphoreClock = xSemaphoreCreateBinary();
 	if (xSemaphoreClock == NULL) { 
