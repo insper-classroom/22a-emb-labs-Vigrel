@@ -112,6 +112,10 @@ void io_init(void) {
   NVIC_EnableIRQ(BUT_PIO_ID);
   NVIC_SetPriority(BUT_PIO_ID, 4);
 }
+
+void helper(uint8_t *g_sendBuffer, char *main_prefix_buffer){
+	sprintf(g_sendBuffer, "GET %s HTTP/1.1\r\n Accept: */*\r\n\r\n", main_prefix_buffer);
+}
 /************************************************************************/
 /* callbacks                                                            */
 /************************************************************************/
@@ -295,7 +299,7 @@ static void task_process(void *pvParameters) {
 
       case GET:
       printf("STATE: GET \n");
-      sprintf((char *)g_sendBuffer, MAIN_PREFIX_BUFFER);
+      helper(&g_sendBuffer, "/status");
       send(tcp_client_socket, g_sendBuffer, strlen((char *)g_sendBuffer), 0);
       state = ACK;
       break;
